@@ -1,9 +1,16 @@
 # In capistrano definition
 require File.expand_path('path/to/this/sourece.rb')
-# specify your ELB targtet group name (e.g. 'my-app'),
+# specify your ELB targtet group name (e.g. 'my-api-server' 'my-web-server'),
 # then you can deploy all EC2 instances that are under my-app ELB.
-Aws::Ec2.ip_addresses('my-app').each.with_index(1) do |ip_addr, idx|
-  server "my-app-#{idx}",
+Aws::Ec2.ip_addresses('my-api-server').each.with_index(1) do |ip_addr, idx|
+  server "my-api-server-#{idx}",
+    user: 'centos',
+    roles: %w{rails},
+    ssh_options: ssh_options(ipaddr: ip_addr)
+end
+
+Aws::Ec2.ip_addresses('my-web-server').each.with_index(1) do |ip_addr, idx|
+  server "my-web-server-#{idx}",
     user: 'centos',
     roles: %w{rails},
     ssh_options: ssh_options(ipaddr: ip_addr)
@@ -15,11 +22,11 @@ end
 require 'awk-sdk'
 module Aws
   module Ec2
+    # elb_target_group_nameにはELBターゲットグループのnameを指定する
     def self.ip_addresses(elb_target_group_name)
-      @ip_address ||=
-        ec2_instances(elb_target_group_name).each_with_object([]) do |i, arr|
-          arr << i.instances[0].private_ip_address
-        end
+      ec2_instances(elb_target_group_name).each_with_object([]) do |i, arr|
+        arr << i.instances[0].private_ip_address
+      end
     end
 
     private
@@ -41,39 +48,36 @@ module Aws
     end
 
     def self.elb_target_group_arn(elb_target_group_name)
-      @elb_target_group_arn ||=
-        elb_client
-          .describe_target_groups(
-            {
-              names: [elb_target_group_name]
-            }
-          )
-          .first
-          .target_groups[0]
-          .target_group_arn
+      elb_client
+        .describe_target_groups(
+          {
+            names: [elb_target_group_name]
+          }
+        )
+        .first
+        .target_groups[0]
+        .target_group_arn
     end
 
     def self.instance_ids(elb_target_group_name)
-      @instance_ids ||=
-        elb_client
-          .describe_target_health(target_group_arn: elb_target_group_arn(elb_target_group_name))
-          .target_health_descriptions
-          .map(&:target)
-          .map(&:id)
+      elb_client
+        .describe_target_health(target_group_arn: elb_target_group_arn(elb_target_group_name))
+        .target_health_descriptions
+        .map(&:target)
+        .map(&:id)
     end
 
     def self.ec2_instances(elb_target_group_name)
-      @ec2_instances ||=
-        ec2_client
-          .describe_instances(
-            filters:[
-              {
-                name: 'instance-id',
-                values: instance_ids(elb_target_group_name)
-              }
-            ]
-          )
-          .reservations
+      ec2_client
+        .describe_instances(
+          filters:[
+            {
+              name: 'instance-id',
+              values: instance_ids(elb_target_group_name)
+            }
+          ]
+        )
+        .reservations
     end
   end
 end
