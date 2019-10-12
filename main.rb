@@ -29,6 +29,17 @@ module Aws
       end
     end
 
+    # this will return EC2 ip adresses under specific ELB target group.
+    # (e.g.)
+    # [app]
+    # {"app-01"=>"11.1.1.111", "app-02"=>"11.1.1.555"}
+    def self.show_instance_ips
+      puts <<-EOS
+[app]
+#{ip_list}
+EOS
+    end
+
     private
 
     def self.elb_client
@@ -78,6 +89,10 @@ module Aws
           ]
         )
         .reservations
+    end
+
+    def self.ip_list
+      @ip_list ||= Aws::Ec2::ip_addresses_list('app')
     end
   end
 end
